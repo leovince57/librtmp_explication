@@ -1,17 +1,47 @@
 # rtmpdump explication
 
-[rtmpdump.c](/src/rtmpdump/rtmpdump.c)
+**Sourcecode** : [rtmpdump.c](/src/rtmpdump/rtmpdump.c)
 
-![](../files/rtmpdump.png)
+Flowchart by **functions** : ![](../files/rtmpdump.png)
 
-## getopt_long
+Rtmpdump is mainly divided into the following **parts**
+1. Variables definition
+2. Read parameters and assign to variables
+3. Url parse
+4. Resume file(optional)
+5. RTMP Start
+6. Data Download
+7. RTMP Close
 
-## Url Processing
+------------
 
-## Resume
+## Variables definition
+There are many variables in rtmpdump initialized at the beginning of the main function.\
+In order to deeply understand the meaning of certain variables, you may read **usage** function additionally.
 
-## Connect
+## Read parameters and assign to variables
+Reading input parameters through **getopt_long** function.Among the more important is the reading of **rtmp url** by -r option.
+When we receive the rtmp url then parse it.
+
+## Url parse
+The specific url parsing method is written in the [parsurl.c](../src/rtmpdump/librtmp/parseurl.c) file.\
+Usually the rtmp format is like this: `rtmp://host[:port]/app`.  
+Through string parsing of URL we can get _protocol, host, port, playpath and app_. 
+These parsed parameters will be assigned to the link structure of RTMP through the **RTMP_SetupStream** method.\
+It is worth noting that **RTMP_SetupURL** function covers parse url and setup stream.
+
+## Resume file(optional)
+The entire resume process includes OpenResumeFile and GetLastKeyFrame. 
+
+### OpenResumeFile
+### GetLastKeyFrame
+In order to better understand these two method requires a little understanding of the [flv file format](https://docs.fileformat.com/video/flv/). \
+The analysis of flv here uses [AMF](../src/rtmpdump/librtmp/amf.c) decoding.\
+The function parses the **script tag metadata** and **duration** of the file.\
+For specific more, please refer to the **comments of the source code**.
+
+## RTMP Start
+first variable inside function leads to RTMP_Connect and RTMP_ConnectStream.
 
 ## Download
 
-## Close

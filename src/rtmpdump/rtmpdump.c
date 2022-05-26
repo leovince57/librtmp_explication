@@ -139,6 +139,7 @@ int OpenResumeFile(const char *flvFile,	// file name [in]
     if (!*file)
         return RD_SUCCESS;		// RD_SUCCESS, because we go to fresh file mode instead of quiting
 
+    ///get file size
     fseek(*file, 0, SEEK_END);
     *size = ftello(*file);
     fseek(*file, 0, SEEK_SET);
@@ -148,12 +149,15 @@ int OpenResumeFile(const char *flvFile,	// file name [in]
         // verify FLV format and read header
         uint32_t prevTagSize = 0;
 
+        /// flv starts with a 9 bytes header, why read 13 here?
         // check we've got a valid FLV file to continue!
         if (fread(hbuf, 1, 13, *file) != 13)
         {
             RTMP_Log(RTMP_LOGERROR, "Couldn't read FLV file header!");
             return RD_FAILED;
         }
+
+        /// flv header contains a 3 bytes Signature equals to 'FLV'
         if (hbuf[0] != 'F' || hbuf[1] != 'L' || hbuf[2] != 'V'
             || hbuf[3] != 0x01)
         {
@@ -161,15 +165,19 @@ int OpenResumeFile(const char *flvFile,	// file name [in]
             return RD_FAILED;
         }
 
+        /// 5 bits flags shows if have video or audio
         if ((hbuf[4] & 0x05) == 0) {
             RTMP_Log(RTMP_LOGERROR,
                      "FLV file contains neither video nor audio, aborting!");
             return RD_FAILED;
         }
 
+        /// the 6th bytes in header, dataOffset in int32 shows flv header length
+        /// seek over header
         uint32_t dataOffset = AMF_DecodeInt32(hbuf + 5);
         fseek(*file, dataOffset, SEEK_SET);
 
+        /// flv prevTagSize 4 bytes
         if (fread(hbuf, 1, 4, *file) != 4) {
             RTMP_Log(RTMP_LOGERROR, "Invalid FLV file: missing first prevTagSize!");
             return RD_FAILED;
@@ -188,12 +196,18 @@ int OpenResumeFile(const char *flvFile,	// file name [in]
 
         while (pos < *size - 4 && !bFoundMetaHeader) {
             fseeko(*file, pos, SEEK_SET);
+            /// first 4 bytes of tag header
             if (fread(hbuf, 1, 4, *file) != 4)
                 break;
 
             uint32_t dataSize = AMF_DecodeInt24(hbuf + 1);
 
+            /// first byte of tag header shows tag type
+            /// 0x08: audio data, 0x09 video data, 0x12 script data
+            /// script data include some video infos
             if (hbuf[0] == 0x12) {    //script tag data
+
+                /// expand buffer size automatically
                 if (dataSize > bufferSize) {
                     /* round up to next page boundary */
                     bufferSize = dataSize + 4095;
@@ -203,6 +217,7 @@ int OpenResumeFile(const char *flvFile,	// file name [in]
                     if (!buffer)
                         return RD_FAILED;
                 }
+
                 fseeko(*file, pos + 11, SEEK_SET);
                 if (fread(buffer, 1, dataSize, *file) != dataSize)
                     break;
@@ -215,6 +230,7 @@ int OpenResumeFile(const char *flvFile,	// file name [in]
                     break;
                 }
 
+                /// get metadata by AMF then duration
                 AVal metastring;
                 AMFProp_GetString(AMF_GetProp(&metaObj, NULL, 0), &metastring);
 
@@ -269,6 +285,7 @@ int GetLastKeyframe(FILE * file,	// output file [in]
     if (fread(&dataType, sizeof(uint8_t), 1, file) != 1)
         return RD_FAILED;
 
+    /// get flv media type
     bAudioOnly = (dataType & 0x4) && !(dataType & 0x1);
 
     RTMP_Log(RTMP_LOGDEBUG, "bAudioOnly: %d, size: %llu", bAudioOnly, (unsigned long long) size);
@@ -705,6 +722,7 @@ int main(int argc, char **argv) {
 
     int nSkipKeyFrames = DEF_SKIPFRM;	// skip this number of keyframes when resuming
 
+    /// file location related variables
     int bOverrideBufferTime = FALSE;	// if the user specifies a buffer time override this is true
     int bStdoutMode = TRUE;	// if true print the stream directly to stdout, messages go to stderr
     int bResume = FALSE;		// true in resume mode
@@ -737,6 +755,7 @@ int main(int argc, char **argv) {
     uint32_t dStopOffset = 0;
     RTMP rtmp = { 0 };
 
+    /// url related variables
     AVal fullUrl = { 0, 0 };
     AVal swfUrl = { 0, 0 };
     AVal tcUrl = { 0, 0 };
