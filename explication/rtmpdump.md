@@ -25,7 +25,7 @@ When we receive the rtmp url then parse it.
 
 ## Url parse
 The specific url parsing method is written in the [parsurl.c](../src/rtmpdump/librtmp/parseurl.c) file.\
-Usually the rtmp format is like this: `rtmp://host[:port]/app`.  
+Usually the rtmp format is like this: `rtmp[t][e|s]://hostname[:port][/app[/playpath]]`.  
 Through string parsing of URL we can get _protocol, host, port, playpath and app_. 
 These parsed parameters will be assigned to the link structure of RTMP through the **RTMP_SetupStream** method.\
 It is worth noting that **RTMP_SetupURL** function covers parse url and setup stream.
@@ -35,13 +35,13 @@ The entire resume process includes OpenResumeFile and GetLastKeyFrame.
 
 ### OpenResumeFile
 ### GetLastKeyFrame
-In order to better understand these two method requires a little understanding of the [flv file format](https://docs.fileformat.com/video/flv/). \
+Studying these two methods requires some understanding of the [flv file format](https://docs.fileformat.com/video/flv/). \
 The analysis of flv here uses [AMF](../src/rtmpdump/librtmp/amf.c) decoding.\
-The function parses the **script tag metadata** and **duration** of the file.\
+The function(OpenResumeFile) parses the **script tag metadata** and **duration** of the file.\
 For specific more, please refer to the **comments of the source code**.
 
 ## RTMP Start
-first variable inside function leads to RTMP_Connect and RTMP_ConnectStream.
+ The variable first inside function leads to RTMP_Connect and RTMP_ConnectStream.
 
 ## Download
 
