@@ -1576,12 +1576,12 @@ SendConnectPacket(RTMP *r, RTMPPacket *cp)
     if (cp)
         return RTMP_SendPacket(r, cp, TRUE);
 
-    packet.m_nChannel = 0x03;	/* control channel (invoke) */
-    packet.m_headerType = RTMP_PACKET_SIZE_LARGE;
-    packet.m_packetType = RTMP_PACKET_TYPE_INVOKE;
+    packet.m_nChannel = 0x03;	/* control channel (invoke) */  /// stream id
+    packet.m_headerType = RTMP_PACKET_SIZE_LARGE;   /// fmt, Chunk type
+    packet.m_packetType = RTMP_PACKET_TYPE_INVOKE;  /// message type id
     packet.m_nTimeStamp = 0;
-    packet.m_nInfoField2 = 0;
-    packet.m_hasAbsTimestamp = 0;
+    packet.m_nInfoField2 = 0;    /// message stream id
+    packet.m_hasAbsTimestamp = 0;   ///timestamp Delta
     packet.m_body = pbuf + RTMP_MAX_HEADER_SIZE;
 
     enc = packet.m_body;
@@ -1612,7 +1612,7 @@ SendConnectPacket(RTMP *r, RTMPPacket *cp)
     }
     if (r->Link.tcUrl.av_len)
     {
-        enc = AMF_EncodeNamedString(enc, pend, &av_tcUrl, &r->Link.`tcUrl`);
+        enc = AMF_EncodeNamedString(enc, pend, &av_tcUrl, &r->Link.tcUrl);
         if (!enc)
             return FALSE;
     }
@@ -3883,8 +3883,7 @@ RTMP_SendChunk(RTMP *r, RTMPChunk *chunk)
     return wrote;
 }
 
-int
-RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
+int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
 {
     const RTMPPacket *prevPacket;
     uint32_t last = 0;
