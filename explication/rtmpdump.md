@@ -42,6 +42,16 @@ For specific more, please refer to the **comments of the source code**.
 
 ## RTMP Start
  The variable first inside function leads to RTMP_Connect and RTMP_ConnectStream.
+ Refer to [rtmp.md](../explication/rtmp.md) and [source file](../src/rtmpdump/librtmp/rtmp.c) for more. 
+
+### RTMP_Connect
+Establish a socket connect then send a connect-packet for confirming.
+
+### RTMP Stream Connect
+Read packet(RTMP_ReadPacket) until m_bPlaying == TRUE indicates that the stream has completed the connection.\
+The more important functions here are **RTMP_ReadPacket** and **RTMP_ClientPacket**(processing).\
+RTMP_ClientPacket does different processing according to the message type, what needs to be processed here is the **RTMP_PACKET_TYPE_INVOKE** message._Then jump to the **HandleInvoke** function._\
+HandleInvoke is used to handle messages of type invoke. _What needs to be processed here is **av_createStream**._
 
 ## Download
 
