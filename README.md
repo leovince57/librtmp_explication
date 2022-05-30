@@ -1,6 +1,12 @@
 # librtmp_explication
 This project aims to help developers better learning the **rtmp protocol**, the librtmp **source code** has related **streaming media knowledge**。
 
+## About RTMP
+Before entering the whole project you can read the following article to get a general understanding of rtmp.\
+https://ottverse.com/rtmp-real-time-messaging-protocol-encoding-streaming/ \
+And the wiki is here to help you check, there is no need to delve into the details.\
+[RTMP Wiki](https://en.wikipedia.org/wiki/Real-Time_Messaging_Protocol#Connect)
+
 ## Study Guide
 
 1. overall procedures are in

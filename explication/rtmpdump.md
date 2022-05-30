@@ -54,4 +54,5 @@ RTMP_ClientPacket does different processing according to the message type, what 
 HandleInvoke is used to handle messages of type invoke. _What needs to be processed here is **av_createStream**._
 
 ## Download
+The rtmp read method is mainly used here to download data.
 
