@@ -1099,6 +1099,7 @@ RTMP_ConnectStream(RTMP *r, int seekTime)
 
     r->m_mediaChannel = 0;
 
+    /// loop(read packet) until error or connect accomplished(m_bPlaying == TRUE)
     while (!r->m_bPlaying && RTMP_IsConnected(r) && RTMP_ReadPacket(r, &packet))
     {
         if (RTMPPacket_IsReady(&packet))
@@ -1114,6 +1115,7 @@ RTMP_ConnectStream(RTMP *r, int seekTime)
                 continue;
             }
 
+            /// Process packets unless the above two situations occur(no body or type == AUDIO,VIDEO,INFO)
             RTMP_ClientPacket(r, &packet);
             RTMPPacket_Free(&packet);
         }
@@ -1576,7 +1578,7 @@ SendConnectPacket(RTMP *r, RTMPPacket *cp)
     if (cp)
         return RTMP_SendPacket(r, cp, TRUE);
 
-    packet.m_nChannel = 0x03;	/* control channel (invoke) */  /// stream id
+    packet.m_nChannel = 0x03;	/* control channel (invoke) */  /// chunk stream id
     packet.m_headerType = RTMP_PACKET_SIZE_LARGE;   /// fmt, Chunk type
     packet.m_packetType = RTMP_PACKET_TYPE_INVOKE;  /// message type id
     packet.m_nTimeStamp = 0;
@@ -3895,6 +3897,7 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     int nChunkSize;
     int tlen;
 
+    /// reallocate memory for allocatedOut
     if (packet->m_nChannel >= r->m_channelsAllocatedOut)
     {
         int n = packet->m_nChannel + 10;
@@ -3910,7 +3913,11 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
         r->m_channelsAllocatedOut = n;
     }
 
+    /// get last chunk by chunk id
     prevPacket = r->m_vecChannelsOut[packet->m_nChannel];
+
+    /// Depending on the value of the fmt, some fields of the Message Header can be omitted
+    /// Simplify the header by comparing it with the previous packet
     if (prevPacket && packet->m_headerType != RTMP_PACKET_SIZE_LARGE)
     {
         /* compress a bit by using the prev packet's attributes */
@@ -3932,12 +3939,19 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
         return FALSE;
     }
 
+    /// get the corresponding header size
     nSize = packetSize[packet->m_headerType];
-    hSize = nSize; cSize = 0;
+    /// hSize: header size
+    hSize = nSize;
+    /// basic header type(basic header size - 1)
+    cSize = 0;
+
+    /// timestamp increment
     t = packet->m_nTimeStamp - last;
 
     if (packet->m_body)
     {
+        /// header point and body point
         header = packet->m_body - nSize;
         hend = packet->m_body;
     }
@@ -3947,16 +3961,20 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
         hend = hbuf + sizeof(hbuf);
     }
 
+    /// cSize: stream id size defined by chunk stream id, also equals to basic header size - 1
     if (packet->m_nChannel > 319)
         cSize = 2;
     else if (packet->m_nChannel > 63)
         cSize = 1;
+
+    /// relocation header pointer and header size
     if (cSize)
     {
         header -= cSize;
         hSize += cSize;
     }
 
+    /// larger timestamp needs 4 bytes more memory which means ExtendTimeStamp
     if (t >= 0xffffff)
     {
         header -= 4;
@@ -3965,7 +3983,11 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     }
 
     hptr = header;
+
+    /// c: first two bits are m_headerType(fmt)
     c = packet->m_headerType << 6;
+
+    /// set first bytes of basic header(BH)
     switch (cSize)
     {
         case 0:
@@ -3978,6 +4000,8 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
             break;
     }
     *hptr++ = c;
+
+    /// set the second and third bytes(only when cSize == 2) of basic header
     if (cSize)
     {
         int tmp = packet->m_nChannel - 64;
@@ -3986,20 +4010,24 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
             *hptr++ = tmp >> 8;
     }
 
+    /// set timestamp
     if (nSize > 1)
     {
         hptr = AMF_EncodeInt24(hptr, hend, t > 0xffffff ? 0xffffff : t);
     }
 
+    /// set message length + message type id
     if (nSize > 4)
     {
         hptr = AMF_EncodeInt24(hptr, hend, packet->m_nBodySize);
         *hptr++ = packet->m_packetType;
     }
 
+    /// set message stream id
     if (nSize > 8)
         hptr += EncodeInt32LE(hptr, packet->m_nInfoField2);
 
+    /// ExtendTimeStamp
     if (t >= 0xffffff)
         hptr = AMF_EncodeInt32(hptr, hend, t);
 
@@ -4009,12 +4037,18 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
 
     RTMP_Log(RTMP_LOGDEBUG2, "%s: fd=%d, size=%d", __FUNCTION__, r->m_sb.sb_socket,
              nSize);
+
     /* send all chunks in one HTTP request */
     if (r->Link.protocol & RTMP_FEATURE_HTTP)
     {
+        /// integer by division, chunks: number of split message
         int chunks = (nSize+nChunkSize-1) / nChunkSize;
         if (chunks > 1)
         {
+            /// calculate the total length of the message
+            /// cSize + 1: one basic header length
+            /// nSize: payload length
+            /// hSize: message header length
             tlen = chunks * (cSize + 1) + nSize + hSize;
             tbuf = malloc(tlen);
             if (!tbuf)
@@ -4022,30 +4056,41 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
             toff = tbuf;
         }
     }
+
+    /// copy data in chunks
+    /// message payload + message header length
     while (nSize + hSize)
     {
         int wrote;
 
+        /// no need for chunking
         if (nSize < nChunkSize)
             nChunkSize = nSize;
 
         RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)header, hSize);
         RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)buffer, nChunkSize);
+
         if (tbuf)
         {
+            /// copy data by one chunk
             memcpy(toff, header, nChunkSize + hSize);
             toff += nChunkSize + hSize;
         }
         else
         {
+            /// write data directly
             wrote = WriteN(r, header, nChunkSize + hSize);
             if (!wrote)
                 return FALSE;
         }
+
         nSize -= nChunkSize;
         buffer += nChunkSize;
+
+        /// reset header size, subsequent chunks require only the basic header
         hSize = 0;
 
+        /// still have data not copied, prepare for the next header
         if (nSize > 0)
         {
             header = buffer - 1;
@@ -4060,6 +4105,7 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
                 header -= 4;
                 hSize += 4;
             }
+
             *header = (0xc0 | c);
             if (cSize)
             {
@@ -4075,6 +4121,8 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
             }
         }
     }
+
+    /// write message buffer
     if (tbuf)
     {
         int wrote = WriteN(r, tbuf, toff-tbuf);
@@ -4085,6 +4133,7 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     }
 
     /* we invoked a remote method */
+    /// record the invoke type message through the queue
     if (packet->m_packetType == RTMP_PACKET_TYPE_INVOKE)
     {
         AVal method;
@@ -4101,9 +4150,11 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
         }
     }
 
+    /// record sent packet
     if (!r->m_vecChannelsOut[packet->m_nChannel])
         r->m_vecChannelsOut[packet->m_nChannel] = malloc(sizeof(RTMPPacket));
     memcpy(r->m_vecChannelsOut[packet->m_nChannel], packet, sizeof(RTMPPacket));
+
     return TRUE;
 }
 

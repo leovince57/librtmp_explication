@@ -1343,6 +1343,7 @@ int main(int argc, char **argv) {
                         break;
                     }
                 }
+
                 if (!RTMP_ReconnectStream(&rtmp, dSeek))
                 {
                     RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
