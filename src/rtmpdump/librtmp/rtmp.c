@@ -1219,6 +1219,8 @@ int
 RTMP_ClientPacket(RTMP *r, RTMPPacket *packet)
 {
     int bHasMediaPacket = 0;
+
+    /// different processing according to type
     switch (packet->m_packetType)
     {
         case RTMP_PACKET_TYPE_CHUNK_SIZE:
@@ -2923,15 +2925,22 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
     }
 
     AMF_Dump(&obj);
+    /// method: command name
     AMFProp_GetString(AMF_GetProp(&obj, NULL, 0), &method);
+    /// txn: transaction id
     txn = AMFProp_GetNumber(AMF_GetProp(&obj, NULL, 1));
     RTMP_Log(RTMP_LOGDEBUG, "%s, server invoking <%s>", __FUNCTION__, method.av_val);
 
     if (AVMATCH(&method, &av__result))
     {
+        /// _result command
+        /// handle result for methods sent
+        /// methods: connect, creatStream, play, publish
+
         AVal methodInvoked = {0};
         int i;
 
+        /// find the corresponding transaction id by traversing the m_methodCalls
         for (i=0; i<r->m_numCalls; i++) {
             if (r->m_methodCalls[i].num == (int)txn) {
                 methodInvoked = r->m_methodCalls[i].name;
@@ -2939,6 +2948,7 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
                 break;
             }
         }
+
         if (!methodInvoked.av_val) {
             RTMP_Log(RTMP_LOGDEBUG, "%s, received result id %f without matching request",
                      __FUNCTION__, txn);
@@ -3556,11 +3566,13 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
         return FALSE;
     }
 
+    /// read the header from the first two bits of the byte, and read the chunk id from the last six bits
     packet->m_headerType = (hbuf[0] & 0xc0) >> 6;
     packet->m_nChannel = (hbuf[0] & 0x3f);
     header++;
     if (packet->m_nChannel == 0)
     {
+        /// a 2 bytes basic header, reader another byte here
         if (ReadN(r, (char *)&hbuf[1], 1) != 1)
         {
             RTMP_Log(RTMP_LOGERROR, "%s, failed to read RTMP packet header 2nd byte",
@@ -3573,6 +3585,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     }
     else if (packet->m_nChannel == 1)
     {
+        /// a 3 bytes basic header, reader another 2 bytes here
         int tmp;
         if (ReadN(r, (char *)&hbuf[1], 2) != 2)
         {
@@ -3588,6 +3601,8 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
 
     nSize = packetSize[packet->m_headerType];
 
+    /// different from the previous chunk saved by m_channelsAllocatedIn
+    /// reallocate memory for allocatedIn
     if (packet->m_nChannel >= r->m_channelsAllocatedIn)
     {
         int n = packet->m_nChannel + 10;
@@ -3612,10 +3627,10 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
         packet->m_hasAbsTimestamp = TRUE;
 
     else if (nSize < RTMP_LARGE_HEADER_SIZE)
-    {				/* using values from the last message of this channel */
+    {
+        /* using values from the last message of this channel */
         if (r->m_vecChannelsIn[packet->m_nChannel])
-            memcpy(packet, r->m_vecChannelsIn[packet->m_nChannel],
-                   sizeof(RTMPPacket));
+            memcpy(packet, r->m_vecChannelsIn[packet->m_nChannel], sizeof(RTMPPacket));
     }
 
     nSize--;
@@ -4133,7 +4148,7 @@ int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     }
 
     /* we invoked a remote method */
-    /// record the invoke type message through the queue
+    /// record the invoke type message through the queue m_methodCalls
     if (packet->m_packetType == RTMP_PACKET_TYPE_INVOKE)
     {
         AVal method;

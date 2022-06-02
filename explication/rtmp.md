@@ -33,10 +33,20 @@ Generate **chunk headers** and write chunk based on the packet type . \
 You can learn about the type and structure of different headers in advance from wiki.It is worth noting here that the difference between basic header and message header.
 
 ## RTMP_ReadPacket
+Generate a packet from over-ip data.The naming and rules of many variables are consistent with the RTMP_SendPacket function.
 
 ## RTMP_ClientPacket
+The function used to process the packet.
 
 ## HandleInvoke
+Handle invoke type **packet**. \
+```
+Some of the message types shown above,
+such as Ping and Set Client/Server Bandwidth,
+are considered low level RTMP protocol messages 
+which do not use the AMF encoding format.
+```
+More important here is the handling of _**result** method.
 
 ## RTMP_ConnectStream
 
